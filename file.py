@@ -304,6 +304,67 @@ pila_areas.push(Diagnostico)
 pila_areas.push(Recepcion)
 
 contador_IDs = 1
+def ejecutar_turno():
+
+    pila_aux = Stack()
+
+    while not pila_areas.is_empty():
+
+        area = pila_areas.pop()
+        procesadas = 0
+
+        if area.nombre == "Recepcion y Triaje":
+
+            while procesadas < area.capacidad:
+
+                if not area.cola_alta_prioridad.is_empty():
+                    solicitud = area.cola_alta_prioridad.dequeue()
+
+                elif not area.cola_normal_prioridad.is_empty():
+                    solicitud = area.cola_normal_prioridad.dequeue()
+
+                else:
+                    break
+
+                area.cola_nuevas.enqueue(solicitud)
+                procesadas += 1
+
+        else:
+
+            capacidad = area.capacidad
+
+            if area.espera.len() > 5:
+                capacidad = capacidad // 2
+
+                if capacidad < 1:
+                    capacidad = 1
+
+                print(f"Alerta: {area.nombre} esta sobrecargada")
+
+            while procesadas < capacidad and not area.espera.is_empty():
+
+                solicitud = area.espera.dequeue()
+                area.cola_nuevas.enqueue(solicitud)
+                procesadas += 1
+
+        if not pila_areas.is_empty():
+
+            siguiente = pila_areas.top()
+
+            while not area.cola_nuevas.is_empty():
+                siguiente.espera.enqueue(area.cola_nuevas.dequeue())
+
+        else:
+
+            while not area.cola_nuevas.is_empty():
+                area.cola_nuevas.dequeue()
+
+        print(f"{area.nombre}: {procesadas} procesadas")
+
+        pila_aux.push(area)
+
+    while not pila_aux.is_empty():
+        pila_areas.push(pila_aux.pop())
 
 while True:
     print("\n=== Bienvenido Usuario ===\n")
@@ -341,11 +402,46 @@ while True:
         print(f"Solicitud {id_solicitud} creada exitosamente")
 
     elif opcion == "2":
+        print("\n========== TURNO MANUAL ==========")
 
-        ...
+        ejecutar_turno()
 
     elif opcion == "3":
-        ...
+
+        turno = 1
+
+        while True:
+
+            hay_solicitudes = False
+
+            pila_aux = Stack()
+
+            while not pila_areas.is_empty():
+
+                area = pila_areas.pop()
+
+                if area.nombre == "Recepcion y Triaje":
+                    if not area.cola_alta_prioridad.is_empty() or not area.cola_normal_prioridad.is_empty():
+                        hay_solicitudes = True
+                else:
+                    if not area.espera.is_empty():
+                        hay_solicitudes = True
+
+                pila_aux.push(area)
+
+            while not pila_aux.is_empty():
+                pila_areas.push(pila_aux.pop())
+
+            if not hay_solicitudes:
+                break
+
+            print(f"\n========== TURNO {turno} ==========")
+
+            ejecutar_turno()
+
+            turno += 1
+
+        print("\nTodas las solicitudes fueron procesadas.")
 
     elif opcion == "4":
         nombre_eliminar = input("Ingresa el nombre del area que quieras eliminar").strip().lower()
