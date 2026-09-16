@@ -283,14 +283,19 @@ class Area:
     def __init__(self, nombre, capacidad, prioridad = False):
             self.nombre = nombre
             self.capacidad = capacidad
+            self.prioridad = prioridad
 
-            if prioridad:
-                self.cola_alta_prioridad = Queue()
-                self.cola_normal_prioridad = Queue()
-            else:
-                self.espera = Queue()
+            self.cola_alta_prioridad = Queue()
+            self.cola_normal_prioridad = Queue()
+            self.espera = Queue()
 
             self.cola_nuevas = Queue()
+
+            self.procesadas = 0
+            self.transferidas = 0
+            self.salieron = 0
+            self.capacidad_turno = capacidad
+            self.sobrecargada = False
 
 Recepcion = Area("Recepcion y Triaje", 4, True)
 Diagnostico = Area("Diagnostico Tecnico", 2)
@@ -304,69 +309,125 @@ pila_areas.push(Diagnostico)
 pila_areas.push(Recepcion)
 
 contador_IDs = 1
-def ejecutar_turno():
+
+def encolar(area, solicitud):
+
+    if area.prioridad:
+        if solicitud.tipo == "Alta":
+            area.cola_alta_prioridad.enqueue(solicitud)
+        else:
+            area.cola_normal_prioridad.enqueue(solicitud)
+    else:
+        area.espera.enqueue(solicitud)
+
+def pendientes(area):
+
+    if area.prioridad:
+        return area.cola_alta_prioridad.len() + area.cola_normal_prioridad.len()
+
+    return area.espera.len()
+
+def imprimir_reporte():
 
     pila_aux = Stack()
+    posicion = 1
+
+    print("\n--------------- REPORTE DEL TURNO ---------------")
 
     while not pila_areas.is_empty():
 
         area = pila_areas.pop()
-        procesadas = 0
 
-        if area.nombre == "Recepcion y Triaje":
+        print(f"\n{posicion}. {area.nombre} (capacidad efectiva: {area.capacidad_turno})")
+        print(f"Procesadas: {area.procesadas}")
+        print(f"Transferidas a la siguiente etapa: {area.transferidas}")
+        print(f"Salieron del sistema: {area.salieron}")
 
-            while procesadas < area.capacidad:
+        if area.prioridad:
+            print(f"En espera Alta: {area.cola_alta_prioridad}")
+            print(f"En espera Normal: {area.cola_normal_prioridad}")
+        else:
+            print(f"En espera: {area.espera}")
 
+        if area.sobrecargada:
+            print(f"ALERTA: {area.nombre} entro en estado critico, su capacidad se redujo a {area.capacidad_turno}")
+
+        pila_aux.push(area)
+        posicion += 1
+
+    while not pila_aux.is_empty():
+        pila_areas.push(pila_aux.pop())
+
+def ejecutar_turno():
+
+    pila_aux = Stack()
+    total = 0
+
+    while not pila_areas.is_empty():
+
+        area = pila_areas.pop()
+
+        area.procesadas = 0
+        area.transferidas = 0
+        area.salieron = 0
+        area.sobrecargada = False
+
+        capacidad = area.capacidad
+
+        if not area.prioridad and area.espera.len() > 5:
+            capacidad = capacidad // 2
+
+            if capacidad < 1:
+                capacidad = 1
+
+            area.sobrecargada = True
+
+        area.capacidad_turno = capacidad
+
+        while area.procesadas < capacidad and pendientes(area) > 0:
+
+            if area.prioridad:
                 if not area.cola_alta_prioridad.is_empty():
                     solicitud = area.cola_alta_prioridad.dequeue()
-
-                elif not area.cola_normal_prioridad.is_empty():
-                    solicitud = area.cola_normal_prioridad.dequeue()
-
                 else:
-                    break
-
-                area.cola_nuevas.enqueue(solicitud)
-                procesadas += 1
-
-        else:
-
-            capacidad = area.capacidad
-
-            if area.espera.len() > 5:
-                capacidad = capacidad // 2
-
-                if capacidad < 1:
-                    capacidad = 1
-
-                print(f"Alerta: {area.nombre} esta sobrecargada")
-
-            while procesadas < capacidad and not area.espera.is_empty():
-
+                    solicitud = area.cola_normal_prioridad.dequeue()
+            else:
                 solicitud = area.espera.dequeue()
-                area.cola_nuevas.enqueue(solicitud)
-                procesadas += 1
+
+            area.cola_nuevas.enqueue(solicitud)
+            area.procesadas += 1
+
+        total += area.procesadas
+
+        pila_aux.push(area)
+
+    while not pila_aux.is_empty():
+
+        area = pila_aux.pop()
 
         if not pila_areas.is_empty():
 
             siguiente = pila_areas.top()
 
             while not area.cola_nuevas.is_empty():
-                siguiente.espera.enqueue(area.cola_nuevas.dequeue())
+                encolar(siguiente, area.cola_nuevas.dequeue())
+                area.transferidas += 1
 
         else:
 
             while not area.cola_nuevas.is_empty():
                 area.cola_nuevas.dequeue()
+                area.salieron += 1
 
-        print(f"{area.nombre}: {procesadas} procesadas")
+        pila_areas.push(area)
 
-        pila_aux.push(area)
+    imprimir_reporte()
 
-    while not pila_aux.is_empty():
-        pila_areas.push(pila_aux.pop())
+    return total
 
-while True:
+ejecutando = True
+
+while ejecutando:
     print("\n=== Bienvenido Usuario ===\n")
 
     print("1. Registrar Solicitud: ")
@@ -380,52 +441,46 @@ while True:
     opcion = input("\nSeleccione una opcion para continuar: \n")
 
     if opcion == "1":
+
+        if pila_areas.is_empty():
+            print("Error: No hay areas en el sistema para registrar la solicitud")
+            continue
+
         id_solicitud = f"S{contador_IDs}"
         descripcion = input("Ingrese la descripcion del problema: ")
         tipo = input("Ingrese el tipo de prioridad (Alta / Normal)").strip().capitalize()
+
+        if tipo == "Critica":
+            tipo = "Alta"
 
         if tipo not in ["Alta", "Normal"]:
             print("Error: El tipo de solicitud solo puede ser Alta o Normal")
             continue
 
         contador_IDs += 1
-
         nueva_solicitud = Solicitud(id_solicitud, descripcion, tipo)
-
         area_tope = pila_areas.top()
-
-        if tipo == "Alta":
-            area_tope.cola_alta_prioridad.enqueue(nueva_solicitud)
-        else:
-            area_tope.cola_normal_prioridad.enqueue(nueva_solicitud)
-
-        print(f"Solicitud {id_solicitud} creada exitosamente")
+        encolar(area_tope, nueva_solicitud)
+        print(f"Solicitud {id_solicitud} creada exitosamente en {area_tope.nombre}")
 
     elif opcion == "2":
-        print("\n========== TURNO MANUAL ==========")
+        print("\n------- TURNO MANUAL --------")
 
         ejecutar_turno()
 
     elif opcion == "3":
-
         turno = 1
 
         while True:
 
             hay_solicitudes = False
-
             pila_aux = Stack()
 
             while not pila_areas.is_empty():
-
                 area = pila_areas.pop()
 
-                if area.nombre == "Recepcion y Triaje":
-                    if not area.cola_alta_prioridad.is_empty() or not area.cola_normal_prioridad.is_empty():
-                        hay_solicitudes = True
-                else:
-                    if not area.espera.is_empty():
-                        hay_solicitudes = True
+                if pendientes(area) > 0:
+                    hay_solicitudes = True
 
                 pila_aux.push(area)
 
@@ -435,19 +490,28 @@ while True:
             if not hay_solicitudes:
                 break
 
-            print(f"\n========== TURNO {turno} ==========")
+            print(f"\n------ TURNO {turno} -------")
 
-            ejecutar_turno()
-
+            movidas = ejecutar_turno()
             turno += 1
+
+            if movidas == 0:
+                print("\nNinguna solicitud pudo avanzar, se detiene la ejecucion automatica.")
+                break
 
         print("\nTodas las solicitudes fueron procesadas.")
 
     elif opcion == "4":
+
+        if pila_areas.is_empty():
+            print("No hay areas para eliminar")
+            continue
+
         nombre_eliminar = input("Ingresa el nombre del area que quieras eliminar").strip().lower()
 
         pila_aux = Stack()
         area_buscada = None
+        destino = None
 
         while not pila_areas.is_empty():
             current_area = pila_areas.pop()
@@ -457,40 +521,57 @@ while True:
             else:
                 pila_aux.push(current_area)
 
+        if area_buscada is not None and not pila_areas.is_empty():
+            destino = pila_areas.top()
+
+        while not pila_aux.is_empty():
+            pila_areas.push(pila_aux.pop())
+
         if area_buscada is None:
             print(f"No se encontró el Area {nombre_eliminar}")
 
-            while not pila_aux.is_empty():
-                pila_areas.push(pila_aux.pop())
         else:
-            while not pila_aux.is_empty():
-                pila_areas.push(pila_aux.pop())
 
-            tope = pila_areas.top()
+            if destino is None and not pila_areas.is_empty():
+                destino = pila_areas.top()
 
-            if area_buscada.nombre == "Recepcion y Triaje":
-                while not area_buscada.cola_alta_prioridad.is_empty():
-                    solicitudes = area_buscada.cola_alta_prioridad.dequeue()
-                    tope.espera.enqueue(solicitudes)
-                while not area_buscada.cola_normal_prioridad.is_empty():
-                    solicitudes = area_buscada.cola_normal_prioridad.dequeue()
-                    tope.espera.enqueue(solicitudes)
+            movidas = 0
 
-            else:
-                while not area_buscada.espera.is_empty():
-                    solicitudes = area_buscada.espera.dequeue()
-                    if tope.nombre == "Recepcion y Triaje":
-                        tope.cola_normal_prioridad.enqueue(solicitudes)
+            while pendientes(area_buscada) > 0:
+
+                if area_buscada.prioridad:
+                    if not area_buscada.cola_alta_prioridad.is_empty():
+                        solicitud = area_buscada.cola_alta_prioridad.dequeue()
                     else:
-                        tope.espera.enqueue(solicitudes)
+                        solicitud = area_buscada.cola_normal_prioridad.dequeue()
+                else:
+                    solicitud = area_buscada.espera.dequeue()
 
-            print(f"Area {area_buscada.nombre} eliminada correctamente, y sus solicitudes fueron reubicadas en {tope.nombre} ")
+                if destino is not None:
+                    encolar(destino, solicitud)
+
+                movidas += 1
+
+            if destino is None:
+                print(f"Area {area_buscada.nombre} eliminada. Era la ultima del sistema, sus {movidas} solicitudes salieron del sistema")
+            else:
+                print(f"Area {area_buscada.nombre} eliminada correctamente, y sus {movidas} solicitudes fueron reubicadas en {destino.nombre} ")
 
 
     elif opcion == "5":
-        nombre_area = input("Ingrese el nombre de la nueva area: ")
+        nombre_area = input("Ingrese el nombre de la nueva area: ").strip()
 
-        capacidad_area = int(input("Ingrese la capacidad del area (numerica): "))
+        if nombre_area == "":
+            print("Error: El nombre del area no puede estar vacio")
+            continue
+
+        entrada = input("Ingrese la capacidad del area (numerica): ").strip()
+
+        if not entrada.isdigit():
+            print("Error: La capacidad debe ser un numero entero")
+            continue
+
+        capacidad_area = int(entrada)
 
         if capacidad_area <= 0:
             print("Error: La capacidad debe ser mayor a 0")
@@ -502,44 +583,49 @@ while True:
 
 
     elif opcion == "6":
-
         pila_aux = Stack()
         posicion = 1
+
+        print("\nESTADO ACTUAL DEL SISTEMA\n")
 
         while not pila_areas.is_empty():
             current_area = pila_areas.pop()
 
-            if current_area.nombre == "Recepcion y Triaje":
-                pendientes = current_area.cola_alta_prioridad.len() + current_area.cola_normal_prioridad.len()
-                sobrecargada = "Recepcion y Triaje no tiene limite"  
+            if current_area.prioridad:
+                sobrecargada = "No (area de triaje, sin limite)"
             else:
-                pendientes = current_area.espera.len()
-                if pendientes > 5:
-                    sobrecargada = "Si"  
-                else: 
-                    sobrecargada = "No" 
+                if current_area.espera.len() > 5:
+                    sobrecargada = "Si (>5 pendientes)"
+                else:
+                    sobrecargada = "No"
 
-            print(f"{posicion}. Area: {current_area.nombre} (Capacidad: {current_area.capacidad}) | [SOBRECARGADA: {sobrecargada}]")
-
-            if current_area.nombre == "Recepcion y Triaje":
-                print(f"Cola Alta Prioridad : {current_area.cola_alta_prioridad}")
-                print(f"Cola Normal Prioridad: {current_area.cola_normal_prioridad}")
+            if posicion == 1:
+                ubicacion = "TOPE"
+            elif pila_areas.is_empty():
+                ubicacion = "BASE"
             else:
-                print(f"Cola de espera: {current_area.espera}")
+                ubicacion = ""
+
+            print(f"{posicion}. Area: {current_area.nombre} (Capacidad: {current_area.capacidad}) | [SOBRECARGADA: {sobrecargada}] {ubicacion}")
+
+            if current_area.prioridad:
+                print(f"   - Cola Alta Prioridad : {current_area.cola_alta_prioridad}")
+                print(f"   - Cola Normal Prioridad: {current_area.cola_normal_prioridad}")
+            else:
+                print(f"   - Cola de espera: {current_area.espera}")
 
             pila_aux.push(current_area)
             posicion += 1
 
+        if posicion == 1:
+            print("La pila de areas esta vacia")
+
         while not pila_aux.is_empty():
             pila_areas.push(pila_aux.pop()) 
 
+    elif opcion == "7":
+        print("Cerrando el sistema.")
+        ejecutando = False
 
-
-
-
-        
-
-
-
-
-
+    else:
+        print("Opcion invalida, intente de nuevo")
