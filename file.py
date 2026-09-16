@@ -284,7 +284,7 @@ class Area:
             self.nombre = nombre
             self.capacidad = capacidad
             self.prioridad = prioridad
-            
+
             self.cola_alta_prioridad = Queue()
             self.cola_normal_prioridad = Queue()
             self.espera = Queue()
@@ -447,9 +447,6 @@ while ejecutando:
         id_solicitud = f"S{contador_IDs}"
         descripcion = input("Ingrese la descripcion del problema: ")
         tipo = input("Ingrese el tipo de prioridad (Alta / Normal)").strip().capitalize()
-
-        if tipo == "Critica":
-            tipo = "Alta"
 
         if tipo not in ["Alta", "Normal"]:
             print("Error: El tipo de solicitud solo puede ser Alta o Normal")
