@@ -591,20 +591,13 @@ while ejecutando:
                 else:
                     sobrecargada = "No"
 
-            if posicion == 1:
-                ubicacion = "TOPE"
-            elif pila_areas.is_empty():
-                ubicacion = "BASE"
-            else:
-                ubicacion = ""
-
-            print(f"{posicion}. Area: {current_area.nombre} (Capacidad: {current_area.capacidad}) | [SOBRECARGADA: {sobrecargada}] {ubicacion}")
+            print(f"{posicion}. Area: {current_area.nombre} (Capacidad: {current_area.capacidad}) | [SOBRECARGADA: {sobrecargada}]")
 
             if current_area.prioridad:
-                print(f"   - Cola Alta Prioridad : {current_area.cola_alta_prioridad}")
-                print(f"   - Cola Normal Prioridad: {current_area.cola_normal_prioridad}")
+                print(f"- Cola Alta Prioridad : {current_area.cola_alta_prioridad}")
+                print(f"- Cola Normal Prioridad: {current_area.cola_normal_prioridad}")
             else:
-                print(f"   - Cola de espera: {current_area.espera}")
+                print(f"- Cola de espera: {current_area.espera}")
 
             pila_aux.push(current_area)
             posicion += 1
