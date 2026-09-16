@@ -284,13 +284,11 @@ class Area:
             self.nombre = nombre
             self.capacidad = capacidad
             self.prioridad = prioridad
-
+            
             self.cola_alta_prioridad = Queue()
             self.cola_normal_prioridad = Queue()
             self.espera = Queue()
-
             self.cola_nuevas = Queue()
-
             self.procesadas = 0
             self.transferidas = 0
             self.salieron = 0
