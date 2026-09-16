@@ -527,9 +527,6 @@ while ejecutando:
 
         else:
 
-            if destino is None and not pila_areas.is_empty():
-                destino = pila_areas.top()
-
             movidas = 0
 
             while pendientes(area_buscada) > 0:
